@@ -296,7 +296,7 @@ def pre_solve(lane_sol, tol):
     λ  = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'lambda')
     πo = model1.addMVar((Nod, N), name = 'pio')
     πc = model1.addMVar((Nod, N), name = 'pic')
-    πd = model1.addMVar((Nod, N), name = 'pic')
+    πd = model1.addMVar((Nod, N), name = 'pid')
     σ  = model1.addMVar((Nedge, R), name = 'sigma')
     σb = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'sigmab')
 
@@ -564,7 +564,7 @@ for tol in [1.1, 1.15]:
     λ  = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'lambda')
     πo = model1.addMVar((Nod, N), name = 'pio')
     πc = model1.addMVar((Nod, N), name = 'pic')
-    πd = model1.addMVar((Nod, N), name = 'pic')
+    πd = model1.addMVar((Nod, N), name = 'pid')
     σ  = model1.addMVar((Nedge, R), name = 'sigma')
     σb = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'sigmab')
 
