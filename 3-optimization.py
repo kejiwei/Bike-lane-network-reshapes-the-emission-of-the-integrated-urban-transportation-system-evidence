@@ -535,378 +535,312 @@ es = es.T
 #optimization
 ##########################################################################################################
 B,tol = 10,1.15 
-for tol in [1.1, 1.15]:
-    model1 = Model("estimate1")
-    #demand
-    φ  = model1.addMVar(Npath, name = 'phi')
-    v  = model1.addMVar(Nedge, name = 'v')
-    dd = model1.addMVar(Nod, name = 'dd')
-    do = model1.addMVar(Nod, name = 'do')
-    dc = model1.addMVar(Nod, name = 'dc')
-    lane = model1.addMVar(len(used_allow_noexist), vtype = GRB.BINARY, name = 'lane')
-    lane_phi = model1.addMVar(len(used_cod), vtype = GRB.BINARY, name = 'lane_phi')
-    #linear approximation
-    start = Npath+Nedge+3*Nod
-    start1 = Npath+Nedge+3*Nod+len(used_allow_noexist)
-    end = start1 + len(used_cod)
+nBuckets = 1   # represents k in the formulation
 
-    ωc = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'wc')
-    ωo = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'wo')
-    ωd = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'wd')
-    us = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'us')
-    #utility
-    uc_s = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'uc_s')
-    uc = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'uc')
-    d_uc = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'd_uc')
-    #duc_proportion = model1.addMVar(1,lb=-GRB.INFINITY)
+model1 = Model("estimate1")
+#demand
+φ  = model1.addMVar(Npath, name = 'phi')
+v  = model1.addMVar(Nedge, name = 'v')
+dd = model1.addMVar(Nod, name = 'dd')
+do = model1.addMVar(Nod, name = 'do')
+dc = model1.addMVar(Nod, name = 'dc')
+lane = model1.addMVar(len(used_allow_noexist), vtype = GRB.BINARY, name = 'lane')
+lane_phi = model1.addMVar(len(used_cod), vtype = GRB.BINARY, name = 'lane_phi')
+#linear approximation
+start = Npath+Nedge+3*Nod
+start1 = Npath+Nedge+3*Nod+len(used_allow_noexist)
+end = start1 + len(used_cod)
 
-    #dual
-    μ  = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'mu')
-    γ  = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'gamma')
-    λ  = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'lambda')
-    πo = model1.addMVar((Nod, N), name = 'pio')
-    πc = model1.addMVar((Nod, N), name = 'pic')
-    πd = model1.addMVar((Nod, N), name = 'pid')
-    σ  = model1.addMVar((Nedge, R), name = 'sigma')
-    σb = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'sigmab')
+ωc = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'wc')
+ωo = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'wo')
+ωd = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'wd')
+us = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'us')
+#utility
+uc_s = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'uc_s')
+uc = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'uc')
+d_uc = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'd_uc')
+#duc_proportion = model1.addMVar(1,lb=-GRB.INFINITY)
 
-    dc_prop = model1.addMVar(Nedge, name = 'dc_prop')
-    duc_prop = model1.addMVar(len(used_allow_noexist), name = 'duc_prop')
-    σaf = model1.addMVar(len(used_allow_noexist), lb =-GRB.INFINITY, name = 'sigmaaf')
-    σaf_lane = model1.addMVar(len(used_allow_noexist), lb =-GRB.INFINITY, name = 'sigmaaf_lane')
-    σbf = model1.addMVar(len(used_allow_noexist), lb =-GRB.INFINITY, name = 'sigmabf')
-    σbf_lane = model1.addMVar(len(used_allow_noexist), lb =-GRB.INFINITY, name = 'sigmabf_lane')
-    cost_s = model1.addMVar(Nedge, name = 'cost_s')
-    cost_p = model1.addMVar(Npath, name = 'cost_p')
+#dual
+μ  = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'mu')
+γ  = model1.addMVar(Nod,lb=-GRB.INFINITY, name = 'gamma')
+λ  = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'lambda')
+πo = model1.addMVar((Nod, N), name = 'pio')
+πc = model1.addMVar((Nod, N), name = 'pic')
+πd = model1.addMVar((Nod, N), name = 'pid')
+σ  = model1.addMVar((Nedge, R), name = 'sigma')
+σb = model1.addMVar(Nedge,lb=-GRB.INFINITY, name = 'sigmab')
 
-
-    for s in range(len(used_allow_noexist)):
-        ods = bike_ods[np.where(bike_edges==used_allow_noexist[s])]
-        ods = np.array(list(set(used_cod).intersection(set(ods))))
-        phi_vec = np.zeros(len(used_cod))
-        phis = [np.where(used_cod == w) for w in ods]
-        for phi in phis:
-            phi_vec[phi] = 1
-        #model1.addConstr(lane[s] <= sum(lane_phi[phi] for phi in phis))
-        model1.addConstr(lane[s] <= lane_phi@phi_vec)
-        #model1.addConstr(lane[s]*len(phis) >= sum(lane_phi[phi] for phi in phis))
-        model1.addConstr(lane[s]*len(phis) >= lane_phi@phi_vec) 
-
-    try:
-        lane.start = lane_start#bike_lane_loc_start[used_allow_noexist]
-        φ.start = φ_start
-        v.start = v_start
-        dd.start = dd_start
-        do.start = do_start
-        dc.start = dc_start
-        ωc.start = ωc_start
-        ωo.start = ωo_start
-        ωd.start = ωd_start
-        us.start = us_start
-        uc_s.start = uc_s_start
-        uc.start = uc_start
-        d_uc.start = d_uc_start
-        μ.start = μ_start
-        γ.start = γ_start
-        λ.start = λ_start
-        πo.start = πo_start
-        πc.start = πc_start
-        πd.start = πd_start
-        σ.start = σ_start
-        σb.start = σb_start
-    except:
-        print('unable to start at tol', tol,'=============')
-        pass
-
-    bike_length = P_bike.T@distance
-    length_coeff = P_bike@np.diag(1/bike_length)
-    uc_const = uc_unchanged
-
-    model1.addConstr(dc_prop == P_bike@np.diag(1/bike_length)@dc)
-
-    M_lane = P_bike@d_od
-    ones_lane = np.concatenate((notused_exist, used_exist))
-    zeros_lane = np.concatenate((notused_noexist, used_notallow))
-
-    model1.addConstr(uc_s[ones_lane] == distance[ones_lane]*bl_coef)
-    model1.addConstr(d_uc[ones_lane] == np.diag(distance[ones_lane])@dc_prop[ones_lane])
-    model1.addConstr(uc_s[zeros_lane] == 0)
-    model1.addConstr(d_uc[zeros_lane] == 0)
-    model1.addConstr(uc_s[used_allow_noexist] == np.diag(distance[used_allow_noexist]*bl_coef) @ lane)
-
-    model1.addConstr(duc_prop == np.diag(distance[used_allow_noexist])@dc_prop[used_allow_noexist])
-    for s_ind in range(len(used_allow_noexist)):
-        s = used_allow_noexist[s_ind]
-        model1.addConstr(d_uc[s] == duc_prop[s_ind]*lane[s_ind])
-    #for s_ind in range(len(used_allow_noexist)):
-    #    s = used_allow_noexist[s_ind]
-    #    model1.addConstr(uc_s[s] == lane[s_ind]*distance[s]*c_coef[1])
-    #    ods = sparse.find(P_bike[s,:])[1]
-    #    model1.addConstr(d_uc[s] >= distance[s]*sum(dc[w]/bike_length[w] for w in ods) - (1-lane[s_ind])*M_lane[s])
-    #    model1.addConstr(d_uc[s] <= distance[s]*sum(dc[w]/bike_length[w] for w in ods))
-    #    model1.addConstr(d_uc[s] >= 0)
-    #    model1.addConstr(d_uc[s] <= lane[s_ind]*M_lane[s])
+dc_prop = model1.addMVar(Nedge, name = 'dc_prop')
+duc_prop = model1.addMVar(len(used_allow_noexist), name = 'duc_prop')
+σaf = model1.addMVar(len(used_allow_noexist), lb =-GRB.INFINITY, name = 'sigmaaf')
+σaf_lane = model1.addMVar(len(used_allow_noexist), lb =-GRB.INFINITY, name = 'sigmaaf_lane')
+σbf = model1.addMVar(len(used_allow_noexist), lb =-GRB.INFINITY, name = 'sigmabf')
+σbf_lane = model1.addMVar(len(used_allow_noexist), lb =-GRB.INFINITY, name = 'sigmabf_lane')
+cost_s = model1.addMVar(Nedge, name = 'cost_s')
+cost_p = model1.addMVar(Npath, name = 'cost_p')
 
 
+for s in range(len(used_allow_noexist)):
+    ods = bike_ods[np.where(bike_edges==used_allow_noexist[s])]
+    ods = np.array(list(set(used_cod).intersection(set(ods))))
+    phi_vec = np.zeros(len(used_cod))
+    phis = [np.where(used_cod == w) for w in ods]
+    for phi in phis:
+        phi_vec[phi] = 1
+    #model1.addConstr(lane[s] <= sum(lane_phi[phi] for phi in phis))
+    model1.addConstr(lane[s] <= lane_phi@phi_vec)
+    #model1.addConstr(lane[s]*len(phis) >= sum(lane_phi[phi] for phi in phis))
+    model1.addConstr(lane[s]*len(phis) >= lane_phi@phi_vec) 
 
-    model1.addConstr(uc == uc_const + length_coeff.T@uc_s)
+try:
+    lane.start = lane_start#bike_lane_loc_start[used_allow_noexist]
+    φ.start = φ_start
+    v.start = v_start
+    dd.start = dd_start
+    do.start = do_start
+    dc.start = dc_start
+    ωc.start = ωc_start
+    ωo.start = ωo_start
+    ωd.start = ωd_start
+    us.start = us_start
+    uc_s.start = uc_s_start
+    uc.start = uc_start
+    d_uc.start = d_uc_start
+    μ.start = μ_start
+    γ.start = γ_start
+    λ.start = λ_start
+    πo.start = πo_start
+    πc.start = πc_start
+    πd.start = πd_start
+    σ.start = σ_start
+    σb.start = σb_start
+except:
+    print('unable to start at tol', tol,'=============')
+    pass
 
-    model1.addConstr(do + dc + dd == d_od)
-    model1.addConstr(U @ φ == dd)
-    model1.addConstr(P @ φ == v)
+bike_length = P_bike.T@distance
+length_coeff = P_bike@np.diag(1/bike_length)
+uc_const = uc_unchanged
 
+model1.addConstr(dc_prop == P_bike@np.diag(1/bike_length)@dc)
 
-    for i in range(N):
-        model1.addConstr(ωc >= np.diag(a_ff[i,:])@dc+b_ff[i,:])
-        model1.addConstr(ωo >= np.diag(a_ff[i,:])@do+b_ff[i,:])
-        model1.addConstr(ωd >= np.diag(a_ff[i,:])@dd+b_ff[i,:])
-    for i in range(R):
-        #notused_exist & used_exist
-        model1.addConstr(us[ones_lane] >= np.diag(a_f_lane[i,ones_lane])@v[ones_lane] + b_f_lane[i,ones_lane])
+M_lane = P_bike@d_od
+ones_lane = np.concatenate((notused_exist, used_exist))
+zeros_lane = np.concatenate((notused_noexist, used_notallow))
 
-        #notused_noexist & used_notallow
-        model1.addConstr(us[zeros_lane] >= np.diag(a_f[i,zeros_lane])@v[zeros_lane] + b_f[i,zeros_lane])
+model1.addConstr(uc_s[ones_lane] == distance[ones_lane]*bl_coef)
+model1.addConstr(d_uc[ones_lane] == np.diag(distance[ones_lane])@dc_prop[ones_lane])
+model1.addConstr(uc_s[zeros_lane] == 0)
+model1.addConstr(d_uc[zeros_lane] == 0)
+model1.addConstr(uc_s[used_allow_noexist] == np.diag(distance[used_allow_noexist]*bl_coef) @ lane)
 
-        #used_allow_noexist
-        inds = range(len(used_allow_noexist))
-        model1.addConstr(us[used_allow_noexist] >= np.diag(a_f[i,used_allow_noexist])@v[used_allow_noexist] + b_f[i,used_allow_noexist] - np.diag(M_x[used_allow_noexist,i])@lane)
-        model1.addConstr(us[used_allow_noexist] >= np.diag(a_f_lane[i,used_allow_noexist])@v[used_allow_noexist] + b_f_lane[i,used_allow_noexist] - (M_x_lane[used_allow_noexist,i]-np.diag(M_x_lane[used_allow_noexist,i])@lane))
-
-
-    for w in range(Nod):
-        model1.addConstr(μ[w] - πo[w,:]@a_ff[:,w] <= uo[w])
-        model1.addConstr(μ[w] - πc[w,:]@a_ff[:,w] <= uc[w])
-        model1.addConstr(μ[w] + γ[w] - πd[w,:]@a_ff[:,w] <= ud_unchanged[w])
-    model1.addConstr(- U.T@γ - P.T@λ <= c0*dt_coef)
-
-
-    a_f_diff = np.multiply([sum(a_f_lane[:,s]) for s in range(Nedge)],dt_coef)
-    for s in notused_exist:
-        model1.addConstr(λ[s] <= σ[s,:]@a_f_lane[:,s])
-        model1.addConstr(sum(σ[s,:]) == dt_coef)
-    for s in used_exist:
-        model1.addConstr(λ[s] <= σ[s,:]@a_f_lane[:,s])
-        model1.addConstr(sum(σ[s,:]) == dt_coef)
-    for s in notused_noexist:
-        model1.addConstr(λ[s] <= σ[s,:]@a_f[:,s])
-        model1.addConstr(sum(σ[s,:]) == dt_coef)
-    for s in used_notallow:
-        model1.addConstr(λ[s] <= σ[s,:]@a_f[:,s])
-        model1.addConstr(sum(σ[s,:]) == dt_coef)
-
-    for s_ind in range(len(used_allow_noexist)):
-        s = used_allow_noexist[s_ind]
-        model1.addConstr(σaf[s_ind] == σ[s,:]@a_f[:,s])
-        model1.addConstr(σaf_lane[s_ind] == σ[s,:]@a_f_lane[:,s])
-        #model1.addConstr(λ[s] <= σ[s,:]@a_f[:,s] +  a_f_diff[s]*lane[s_ind])
-        #model1.addConstr(λ[s] <= σ[s,:]@a_f_lane[:,s])
-        model1.addConstr(λ[s] <= σaf[s_ind]*(1-lane[s_ind]) + σaf_lane[s_ind]*lane[s_ind])
-        model1.addConstr(sum(σ[s,:]) == dt_coef)
-
-    for w in range(Nod):
-        model1.addConstr(πo[w,:]@np.ones(N) == 1)
-        model1.addConstr(πc[w,:]@np.ones(N) == 1)
-        model1.addConstr(πd[w,:]@np.ones(N) == 1)
+model1.addConstr(duc_prop == np.diag(distance[used_allow_noexist])@dc_prop[used_allow_noexist])
+for s_ind in range(len(used_allow_noexist)):
+    s = used_allow_noexist[s_ind]
+    model1.addConstr(d_uc[s] == duc_prop[s_ind]*lane[s_ind])
+#for s_ind in range(len(used_allow_noexist)):
+#    s = used_allow_noexist[s_ind]
+#    model1.addConstr(uc_s[s] == lane[s_ind]*distance[s]*c_coef[1])
+#    ods = sparse.find(P_bike[s,:])[1]
+#    model1.addConstr(d_uc[s] >= distance[s]*sum(dc[w]/bike_length[w] for w in ods) - (1-lane[s_ind])*M_lane[s])
+#    model1.addConstr(d_uc[s] <= distance[s]*sum(dc[w]/bike_length[w] for w in ods))
+#    model1.addConstr(d_uc[s] >= 0)
+#    model1.addConstr(d_uc[s] <= lane[s_ind]*M_lane[s])
 
 
 
-    b_f_diff = np.multiply([(-sum(b_f_lane[:,s])) for s in range(Nedge)],dt_coef)
-    for s in notused_exist:
-        model1.addConstr(σb[s] == σ[s,:]@b_f_lane[:,s])
-    for s in used_exist:
-        model1.addConstr(σb[s] == σ[s,:]@b_f_lane[:,s])
-    for s in notused_noexist:
-        model1.addConstr(σb[s] == σ[s,:]@b_f[:,s])
-    for s in used_notallow:
-        model1.addConstr(σb[s] == σ[s,:]@b_f[:,s])
-    for s_ind in range(len(used_allow_noexist)):
-        s = used_allow_noexist[s_ind]
-        model1.addConstr(σbf[s_ind] == σ[s,:]@b_f[:,s])
-        model1.addConstr(σbf_lane[s_ind] == σ[s,:]@b_f_lane[:,s])
-        model1.addConstr(σb[s] == σbf[s_ind]*(1-lane[s_ind]) + σbf_lane[s_ind]*lane[s_ind])
-        #model1.addConstr(σb[s] >= σ[s,:]@b_f[:,s] - b_f_diff[s]*lane[s_ind])
-        #model1.addConstr(σb[s] <= σ[s,:]@b_f[:,s])
-        #model1.addConstr(σb[s] >= σ[s,:]@b_f_lane[:,s])
-        #model1.addConstr(σb[s] <= σ[s,:]@b_f_lane[:,s] +  b_f_diff[s]*(1-lane[s_ind]))
+model1.addConstr(uc == uc_const + length_coeff.T@uc_s)
+
+model1.addConstr(do + dc + dd == d_od)
+model1.addConstr(U @ φ == dd)
+model1.addConstr(P @ φ == v)
 
 
-    model1.addConstr(do@uo + dc@uc_const + d_uc@np.ones(Nedge)*bl_coef + dd@ud_unchanged + us@np.ones(Nedge)*dt_coef + c0@φ*dt_coef + ωc@np.ones(Nod) + ωo@np.ones(Nod) + ωd@np.ones(Nod) <= (μ@d_od + sum(πo[:,n]@b_ff[n,:] + πc[:,n]@b_ff[n,:] + πd[:,n]@b_ff[n,:] for n in range(N)) + σb@np.ones(Nedge))+1e-06)
-
-
-    ###########################
-    #add time constraint
-    ###########################
-    
-    v_origin = demands['v_opt']
-    ws_l = np.array(weight_cost_w_lane)
-    ws_n = np.array(weight_cost_wo_lane)
-    ws = np.diag(np.multiply(weight_cost_w_lane, bike_lane_loc) + np.multiply(weight_cost_wo_lane, 1-bike_lane_loc))
-    #w0l = np.diag(ws_l)@v0
-    #w0n = np.diag(ws_n)@v0
-    w_diff = np.multiply(ws_l, dub)# + w0l
-    φs_total = c0 + P.T@ws@(v_origin + v0)
+for i in range(N):
+    model1.addConstr(ωc >= np.diag(a_ff[i,:])@dc+b_ff[i,:])
+    model1.addConstr(ωo >= np.diag(a_ff[i,:])@do+b_ff[i,:])
+    model1.addConstr(ωd >= np.diag(a_ff[i,:])@dd+b_ff[i,:])
+for i in range(R):
     #notused_exist & used_exist
-    model1.addConstr(cost_s[ones_lane] == np.diag(ws_l[ones_lane])@v[ones_lane])
+    model1.addConstr(us[ones_lane] >= np.diag(a_f_lane[i,ones_lane])@v[ones_lane] + b_f_lane[i,ones_lane])
+
     #notused_noexist & used_notallow
-    model1.addConstr(cost_s[zeros_lane] == np.diag(ws_n[zeros_lane])@v[zeros_lane])
+    model1.addConstr(us[zeros_lane] >= np.diag(a_f[i,zeros_lane])@v[zeros_lane] + b_f[i,zeros_lane])
+
     #used_allow_noexist
-    ws_n_var = np.diag(ws_n[used_allow_noexist])
-    w_diff_var = np.diag(w_diff[used_allow_noexist])
-    ws_l_var = np.diag(ws_l[used_allow_noexist])
-    model1.addConstr(cost_s[used_allow_noexist] >= ws_n_var@v[used_allow_noexist])
-    model1.addConstr(cost_s[used_allow_noexist] <= ws_n_var@v[used_allow_noexist] + w_diff_var@lane)
-    model1.addConstr(cost_s[used_allow_noexist] <= ws_l_var@v[used_allow_noexist])
-    model1.addConstr(cost_s[used_allow_noexist] >= ws_l_var@v[used_allow_noexist] - (np.diag(w_diff_var)-w_diff_var@lane))
-    model1.addConstr(cost_p == c0 + P.T@cost_s)
-    #lazy = model1.addConstr(cost_p <= tol*φs_total)
-    #for i in range(Npath):
-    #    lazy[i].Lazy = 1 
-    
-    ###########################
-    #add emission constraint
-    ###########################
-    #emission binary
+    inds = range(len(used_allow_noexist))
+    model1.addConstr(us[used_allow_noexist] >= np.diag(a_f[i,used_allow_noexist])@v[used_allow_noexist] + b_f[i,used_allow_noexist] - np.diag(M_x[used_allow_noexist,i])@lane)
+    model1.addConstr(us[used_allow_noexist] >= np.diag(a_f_lane[i,used_allow_noexist])@v[used_allow_noexist] + b_f_lane[i,used_allow_noexist] - (M_x_lane[used_allow_noexist,i]-np.diag(M_x_lane[used_allow_noexist,i])@lane))
 
-    
-    #model1 = Model("estimate1")
 
-    z = model1.addMVar((Npath, K), vtype = GRB.BINARY, name = 'z') 
-    emission = model1.addMVar(Npath, name = 'path_emission')
+for w in range(Nod):
+    model1.addConstr(μ[w] - πo[w,:]@a_ff[:,w] <= uo[w])
+    model1.addConstr(μ[w] - πc[w,:]@a_ff[:,w] <= uc[w])
+    model1.addConstr(μ[w] + γ[w] - πd[w,:]@a_ff[:,w] <= ud_unchanged[w])
+model1.addConstr(- U.T@γ - P.T@λ <= c0*dt_coef)
 
-    pathdistance = P.T@distance/1609.34 #pathdistance in miles
-    pathdistance_diag = np.diag(pathdistance)
-    pathdistance = pathdistance.T
-    time_bucket = np.zeros((Npath,K+1))
-    M = max(pathdistance)/min(speeds)
-    for k in range(K+1):
-        time_bucket[:,k] = pathdistance/speeds[k]  #time_bucket in hours
 
-    for k in range(K):
-        model1.addConstr(np.diag(time_bucket[:,k+1])@z[:,k]*60 <= cost_p)
-        model1.addConstr(np.diag(time_bucket[:,k])@z[:,k] + M*(np.ones(Npath)-z[:,k]) >= cost_p/60)
+a_f_diff = np.multiply([sum(a_f_lane[:,s]) for s in range(Nedge)],dt_coef)
+for s in notused_exist:
+    model1.addConstr(λ[s] <= σ[s,:]@a_f_lane[:,s])
+    model1.addConstr(sum(σ[s,:]) == dt_coef)
+for s in used_exist:
+    model1.addConstr(λ[s] <= σ[s,:]@a_f_lane[:,s])
+    model1.addConstr(sum(σ[s,:]) == dt_coef)
+for s in notused_noexist:
+    model1.addConstr(λ[s] <= σ[s,:]@a_f[:,s])
+    model1.addConstr(sum(σ[s,:]) == dt_coef)
+for s in used_notallow:
+    model1.addConstr(λ[s] <= σ[s,:]@a_f[:,s])
+    model1.addConstr(sum(σ[s,:]) == dt_coef)
 
-    
-    model1.addConstr(z@np.ones(K)==np.ones(Npath))
- 
+for s_ind in range(len(used_allow_noexist)):
+    s = used_allow_noexist[s_ind]
+    model1.addConstr(σaf[s_ind] == σ[s,:]@a_f[:,s])
+    model1.addConstr(σaf_lane[s_ind] == σ[s,:]@a_f_lane[:,s])
+    #model1.addConstr(λ[s] <= σ[s,:]@a_f[:,s] +  a_f_diff[s]*lane[s_ind])
+    #model1.addConstr(λ[s] <= σ[s,:]@a_f_lane[:,s])
+    model1.addConstr(λ[s] <= σaf[s_ind]*(1-lane[s_ind]) + σaf_lane[s_ind]*lane[s_ind])
+    model1.addConstr(sum(σ[s,:]) == dt_coef)
 
-    #model1.setObjective(sum(dd)*d_coef[0] + c0@φ*d_coef[1] + 2*sum(us)*d_coef[1] + dc@uc_const + sum(d_uc)*c_coef[1] + do@uo)
-
-    #model1.addConstr(emission == z@es)
-    #model1.setObjective(emission @ pathdistance_diag @ φ) 
-
-    model1.setObjective(sum(φ[p]*pathdistance[p]*sum(z[p,k]*es[k] for k in range(K)) for p in range(Npath))) 
+for w in range(Nod):
+    model1.addConstr(πo[w,:]@np.ones(N) == 1)
+    model1.addConstr(πc[w,:]@np.ones(N) == 1)
+    model1.addConstr(πd[w,:]@np.ones(N) == 1)
 
 
 
-    #model1.setObjective(sum(dd)*d_coef[0] + c0@φ*d_coef[1] + 2*sum(us)*d_coef[1] + dc@uc_const + sum(d_uc)*c_coef[1] + do@uo)
-
-    #model1.setObjective(dc@np.ones(Nod))
-    #model1.setObjective(0)
-
-    result = pd.DataFrame(columns=['MIPGap','Obj','ObjBound','Runtime'])
-    all_dist = sum(distance[used_allow_noexist])
-
-    model1.params.MIPGap=0.05
-    #model1.params.NonConvex = 2
-
-    model1.params.MIPFocus = 1
-    #model1.params.FeasibilityTol = 1e-06
-    #model1.params.DegenMoves = -1
-    model1.modelSense = GRB.MINIMIZE
-    #model1.update()
-    #model0 = model1.copy()
- 
-
-    model1.addConstr(distance[used_allow_noexist]@lane <= B*1609.34)
-    model1.Params.lazyConstraints = 1
-  
-    model1.params.TimeLimit = 3600
-
-    model1.update()
-    model1.optimize()
+b_f_diff = np.multiply([(-sum(b_f_lane[:,s])) for s in range(Nedge)],dt_coef)
+for s in notused_exist:
+    model1.addConstr(σb[s] == σ[s,:]@b_f_lane[:,s])
+for s in used_exist:
+    model1.addConstr(σb[s] == σ[s,:]@b_f_lane[:,s])
+for s in notused_noexist:
+    model1.addConstr(σb[s] == σ[s,:]@b_f[:,s])
+for s in used_notallow:
+    model1.addConstr(σb[s] == σ[s,:]@b_f[:,s])
+for s_ind in range(len(used_allow_noexist)):
+    s = used_allow_noexist[s_ind]
+    model1.addConstr(σbf[s_ind] == σ[s,:]@b_f[:,s])
+    model1.addConstr(σbf_lane[s_ind] == σ[s,:]@b_f_lane[:,s])
+    model1.addConstr(σb[s] == σbf[s_ind]*(1-lane[s_ind]) + σbf_lane[s_ind]*lane[s_ind])
+    #model1.addConstr(σb[s] >= σ[s,:]@b_f[:,s] - b_f_diff[s]*lane[s_ind])
+    #model1.addConstr(σb[s] <= σ[s,:]@b_f[:,s])
+    #model1.addConstr(σb[s] >= σ[s,:]@b_f_lane[:,s])
+    #model1.addConstr(σb[s] <= σ[s,:]@b_f_lane[:,s] +  b_f_diff[s]*(1-lane[s_ind]))
 
 
+model1.addConstr(do@uo + dc@uc_const + d_uc@np.ones(Nedge)*bl_coef + dd@ud_unchanged + us@np.ones(Nedge)*dt_coef + c0@φ*dt_coef + ωc@np.ones(Nod) + ωo@np.ones(Nod) + ωd@np.ones(Nod) <= (μ@d_od + sum(πo[:,n]@b_ff[n,:] + πc[:,n]@b_ff[n,:] + πd[:,n]@b_ff[n,:] for n in range(N)) + σb@np.ones(Nedge))+1e-06)
+
+
+###########################
+#add time constraint
+###########################
+
+v_origin = demands['v_opt']
+ws_l = np.array(weight_cost_w_lane)
+ws_n = np.array(weight_cost_wo_lane)
+ws = np.diag(np.multiply(weight_cost_w_lane, bike_lane_loc) + np.multiply(weight_cost_wo_lane, 1-bike_lane_loc))
+#w0l = np.diag(ws_l)@v0
+#w0n = np.diag(ws_n)@v0
+w_diff = np.multiply(ws_l, dub)# + w0l
+φs_total = c0 + P.T@ws@(v_origin + v0)
+#notused_exist & used_exist
+model1.addConstr(cost_s[ones_lane] == np.diag(ws_l[ones_lane])@v[ones_lane])
+#notused_noexist & used_notallow
+model1.addConstr(cost_s[zeros_lane] == np.diag(ws_n[zeros_lane])@v[zeros_lane])
+#used_allow_noexist
+ws_n_var = np.diag(ws_n[used_allow_noexist])
+w_diff_var = np.diag(w_diff[used_allow_noexist])
+ws_l_var = np.diag(ws_l[used_allow_noexist])
+model1.addConstr(cost_s[used_allow_noexist] >= ws_n_var@v[used_allow_noexist])
+model1.addConstr(cost_s[used_allow_noexist] <= ws_n_var@v[used_allow_noexist] + w_diff_var@lane)
+model1.addConstr(cost_s[used_allow_noexist] <= ws_l_var@v[used_allow_noexist])
+model1.addConstr(cost_s[used_allow_noexist] >= ws_l_var@v[used_allow_noexist] - (np.diag(w_diff_var)-w_diff_var@lane))
+model1.addConstr(cost_p == c0 + P.T@cost_s)
+#lazy = model1.addConstr(cost_p <= tol*φs_total)
+#for i in range(Npath):
+#    lazy[i].Lazy = 1 
+
+###########################
+#add emission constraint
+###########################
+#emission binary
+
+
+#model1 = Model("estimate1")
+
+pathdistance = P.T@distance/1609.34 #pathdistance in miles
+pathdistance_diag = np.diag(pathdistance)
+pathdistance = pathdistance.T
+K = 15
+
+distance_miles = distance/1609.34
+
+def compute_time_bucket(num_of_buckets):   #num_of_buckets: k 
+    time_bucket = np.zeros((Nedge,num_of_buckets+2))
+    for k in range(num_of_buckets+1):
+        time_bucket[:,k] = distance_miles/speeds[k]  #time_bucket in hours
+    time_bucket[:,-1] = distance_miles/speeds[K+1]
+    return time_bucket
+
+z = model1.addMVar((Nedge, nBuckets+1), vtype = GRB.BINARY, name = 'z') 
+time_bucket = compute_time_bucket(nBuckets)
+M = max(distance_miles)/min(speeds)
+
+for k in range(1,nBuckets+2):
+    model1.addConstr(np.diag(time_bucket[:,k])@z[:,k-1]*60 <= cost_s)
+    model1.addConstr(np.diag(time_bucket[:,k-1])@z[:,k-1] + M*(np.ones(Nedge)-z[:,k-1]) >= cost_s/60)
+
+
+model1.addConstr(z@np.ones(nBuckets+1)==np.ones(Nedge))
+
+
+#model1.setObjective(sum(dd)*d_coef[0] + c0@φ*d_coef[1] + 2*sum(us)*d_coef[1] + dc@uc_const + sum(d_uc)*c_coef[1] + do@uo)
+
+#model1.addConstr(emission == z@es)
+#model1.setObjective(emission @ pathdistance_diag @ φ) 
+
+model1.setObjective(
+    sum(
+        v[s] * distance_miles[s]* sum(z[s,k]*es[k] for k in range(nBuckets+1)) 
+        for s in range(Nedge)
+        )
+    ) 
 
 
 
 
+#model1.setObjective(sum(dd)*d_coef[0] + c0@φ*d_coef[1] + 2*sum(us)*d_coef[1] + dc@uc_const + sum(d_uc)*c_coef[1] + do@uo)
+
+#model1.setObjective(dc@np.ones(Nod))
+#model1.setObjective(0)
+
+result = pd.DataFrame(columns=['MIPGap','Obj','ObjBound','Runtime'])
+all_dist = sum(distance[used_allow_noexist])
+
+model1.Params.SolFiles = f"E:\BikeLane recompute emi\edgeBasedEmi\B{B}k{nBuckets}_output"
+model1.params.MIPGap=0.05
+#model1.params.NonConvex = 2
+
+model1.params.MIPFocus = 1
+#model1.params.FeasibilityTol = 1e-06
+#model1.params.DegenMoves = -1
+model1.modelSense = GRB.MINIMIZE
+#model1.update()
+#model0 = model1.copy()
+model1.params.LogFile = r"E:\BikeLane recompute emi\edgeBasedEmi\BL optimize.log"
 
 
+model1.addConstr(distance[used_allow_noexist]@lane <= B*1609.34)
+model1.Params.lazyConstraints = 1
 
+model1.params.TimeLimit = 3600
 
+model1.update()
+model1.optimize()
 
-
-
-
-
-
-
-
-
-
-
-
-    result.loc[tol] = model1.MIPGap, model1.getObjective().getValue(), model1.ObjBound, model1.Runtime# + result.loc[B,'Runtime']
-
-    result.to_csv("R"+str(R)+"N"+str(N)+"B"+str(B)+"/tol"+str(tol) + "result.csv")
-
-    path = sol_loc
-    if not os.path.exists(path):
-        os.makedirs(path)
-    now = datetime.now()
-    current_time = now.strftime("%H:%M:%S")
-    print("Current Time =", current_time)
-    try:
-        print("++++++++++++++++++++++++++++++,max_time", max((cost_p.x -φs_total)/φs_total),"+++++++++++++++++++++++++++")
-    except:
-        pass
-    try:
-        lane_start = lane.x
-        φ_start  = φ.x
-        v_start  = v.x
-        dd_start = dd.x
-        do_start = do.x
-        dc_start = dc.x
-        ωc_start = ωc.x
-        ωo_start = ωo.x
-        ωd_start = ωd.x
-        us_start = us.x
-        uc_s_start = uc_s.x
-        uc_start = uc.x
-        d_uc_start = d_uc.x
-        μ_start = μ.x
-        γ_start = γ.x
-        λ_start = λ.x
-        πo_start = πo.x
-        πc_start = πc.x
-        πd_start = πd.x
-        σ_start = σ.x
-        σb_start = σb.x
-
-        np.savetxt(path+"/lane_start.csv", lane.x, delimiter=",")
-        np.savetxt(path+"/φ_start.csv", φ.x, delimiter=",")
-        np.savetxt(path+"/v_start.csv", v.x, delimiter=",")
-        np.savetxt(path+"/dd_start.csv", dd.x, delimiter=",")
-        np.savetxt(path+"/do_start.csv", do.x, delimiter=",")
-        np.savetxt(path+"/dc_start.csv", dc.x, delimiter=",")
-        np.savetxt(path+"/ωc_start.csv", ωc.x, delimiter=",")
-        np.savetxt(path+"/ωo_start.csv", ωo.x, delimiter=",")
-        np.savetxt(path+"/ωd_start.csv", ωd.x, delimiter=",")
-        np.savetxt(path+"/us_start.csv", us.x, delimiter=",")
-        np.savetxt(path+"/uc_s_start.csv", uc_s.x, delimiter=",")
-        np.savetxt(path+"/uc_start.csv", uc.x, delimiter=",")
-        np.savetxt(path+"/d_uc_start.csv", d_uc.x, delimiter=",")
-        np.savetxt(path+"/μ_start.csv", μ.x, delimiter=",")
-        np.savetxt(path+"/γ_start.csv", γ.x, delimiter=",")
-        np.savetxt(path+"/λ_start.csv", λ.x, delimiter=",")
-        np.savetxt(path+"/πo_start.csv", πo.x, delimiter=",")
-        np.savetxt(path+"/πc_start.csv", πc.x, delimiter=",")
-        np.savetxt(path+"/πd_start.csv", πd.x, delimiter=",")
-        np.savetxt(path+"/σ_start.csv", σ.x, delimiter=",")
-        np.savetxt(path+"/σb_start.csv", σb.x, delimiter=",")
-    except:
-        print('unable to save at tol', tol,'=============')
-        break
 
 
 
