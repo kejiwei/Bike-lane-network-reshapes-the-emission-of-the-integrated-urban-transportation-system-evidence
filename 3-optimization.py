@@ -175,6 +175,8 @@ def UE(lane=bike_lane_loc):
     demand['dc_opt'] = dc.x
     demand['dd_opt'] = dd.x
     demand['us_opt'] = us.x
+    demand['cost_p'] = c0 + P.T @ W @ v.x
+    demand['cost_s'] = W @ v.x
     #print(demand, c0@φ.x + 2*sum(us.x), model.getObjective().getValue())
 
 #    return sum(dd.x)*d_coef[0] + c0@φ.x*d_coef[1] + 2*sum(us.x)*d_coef[1]
